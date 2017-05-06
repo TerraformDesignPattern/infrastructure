@@ -11,6 +11,14 @@ help_message() {
   echo -e "\tshow    \t Refresh and show the Terraform remote state"
   exit 1
 }
+
+createBackendConfig() {
+  /bin/cat > backend.tf <<EOL
+terraform {
+  backend "s3" {}
+}
+EOL
+}
  
 apply() {
   plan
@@ -26,13 +34,13 @@ destroy() {
 
 plan() {
   refresh
-  terraform get -update
+  #terraform get -update
   echo -e  "\n\n***** Running \"terraform plan\" *****"
   terraform plan
 }
 
 refresh() {
-
+  root=$(pwd | awk -F "/" '{print $(NF-5)}')
   account=$(pwd | awk -F "/" '{print $(NF-4)}')
   region=$(pwd | awk -F "/" '{print $(NF-3)}')
   vpc=$(pwd | awk -F "/" '{print $(NF-2)}')
@@ -41,10 +49,12 @@ refresh() {
 
   echo -e "\n\n***** Refreshing State *****"
 
-  terraform remote config -backend=s3 \
-                          -backend-config="bucket=${account}" \
-                          -backend-config="key=${region}/${vpc}/${environment}/${service}/terraform.tfstate" \
-                          -backend-config="region=us-east-1"
+  echo "no" | terraform init -get=true \
+                             -input=false \
+                             -backend=true \
+                             -backend-config "bucket=${account}-terraform-state" \
+                             -backend-config "key=${root}/${region}/${vpc}/${environment}/${service}/terraform.tfstate" \
+                             -backend-config "region=us-east-1"
 }
 
 show() {
@@ -58,13 +68,15 @@ if [ "$#" -ne 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   help_message
 fi
 
-ACTION="$1"
+[ -z backend.tf ] || createBackendConfig 
 
-case $ACTION in
+action="$1"
+
+case $action in
   apply|destroy|plan|refresh|show)
-    $ACTION 
+    $action
     ;;
-  ****)
+  *******)
     echo "That is not a vaild choice."
     help_message
     ;;
