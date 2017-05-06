@@ -1,0 +1,1 @@
+../../../../../templates/service-remote.sh

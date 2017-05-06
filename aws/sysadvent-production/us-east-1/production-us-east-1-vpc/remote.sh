@@ -1,0 +1,1 @@
+../../../templates/vpc-remote.sh
