@@ -14,8 +14,12 @@ output "key_pair_name" {
   value = "${var.key_pair_name}"
 }
 
-output "primary_zone_id" {
-  value = "${aws_route53_zone.primary_zone.id}"
+output "route53_name_servers" {
+  value = "${aws_route53_zone.name_servers}"
+}
+
+output "route_53_zone_id" {
+  value = "${aws_route53_zone.zone_id}"
 }
 
 output "ssl_arn" {
