@@ -15,11 +15,11 @@ output "key_pair_name" {
 }
 
 output "route53_name_servers" {
-  value = "${aws_route53_zone.name_servers}"
+  value = "${aws_route53_zone.route53_zone.name_servers}"
 }
 
 output "route_53_zone_id" {
-  value = "${aws_route53_zone.zone_id}"
+  value = "${aws_route53_zone.route53_zone.zone_id}"
 }
 
 output "ssl_arn" {
