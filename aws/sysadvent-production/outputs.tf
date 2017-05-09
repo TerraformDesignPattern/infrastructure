@@ -1,5 +1,5 @@
 output "aws_account" {
-  value = "${var.aws_account}"
+  value = "${basename (path.cwd)}"
 }
 
 output "cloudtrail_cloudwatch_log_group_arn" {

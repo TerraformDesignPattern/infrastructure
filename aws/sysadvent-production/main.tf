@@ -1,7 +1,7 @@
 module "cloudtrail" {
   source = "git@github.com:TerraformDesignPattern/cloudtrail.git"
 
-  aws_account = "${var.aws_account}"
+  aws_account = "${basename (path.cwd)}"
   aws_region  = "${var.aws_region}"
 }
 
