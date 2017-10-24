@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Must be run in the service's directory.
 
 help_message() {
@@ -11,7 +11,7 @@ help_message() {
   echo -e "\tshow    \t Refresh and show the Terraform remote state"
   exit 1
 }
-
+ 
 createBackendConfig() {
   /bin/cat > backend.tf <<EOL
 terraform {
@@ -19,41 +19,61 @@ terraform {
 }
 EOL
 }
- 
+
 apply() {
   plan
   echo -e "\n\n***** Running \"terraform apply\" *****"
-  terraform apply
+  terraform apply -auto-approve=true
 }
 
 destroy() {
-  plan
+  shift
+  plan destroy $@
   echo -e "\n\n***** Running \"terraform destroy\" *****"
-  terraform destroy
+  terraform destroy $@
 }
 
 plan() {
   refresh
-  #terraform get -update
+  terraform get -update
   echo -e  "\n\n***** Running \"terraform plan\" *****"
-  terraform plan
+
+  if [ "$1" = "destroy" ]; then
+    if [ $# -gt 1 ]; then
+      terraform plan -$@
+    else
+      terraform plan -destroy
+    fi
+  else
+    terraform plan
+  fi
 }
 
 refresh() {
   root=$(pwd | awk -F "/" '{print $(NF-5)}')
-  account=$(pwd | awk -F "/" '{print $(NF-4)}')
-  region=$(pwd | awk -F "/" '{print $(NF-3)}')
-  vpc=$(pwd | awk -F "/" '{print $(NF-2)}')
-  environment=$(pwd | awk -F "/" '{print $(NF-1)}')
-  service=$(pwd | awk -F "/" '{print $NF}')
+  aws_account=$(pwd | awk -F "/" '{print $(NF-4)}')
+  aws_region=$(pwd | awk -F "/" '{print $(NF-3)}')
+  vpc_name=$(pwd | awk -F "/" '{print $(NF-2)}')
+  environment_name=$(pwd | awk -F "/" '{print $(NF-1)}')
+  service_name=$(pwd | awk -F "/" '{print $NF}')
 
-  echo -e "\n\n***** Refreshing State *****"
+  export TF_VAR_root="$root"
+  export TF_VAR_aws_account="$aws_account"
+  export TF_VAR_aws_region="$aws_region"
+  export TF_VAR_vpc_name="$vpc_name"
+  export TF_VAR_environment_name="$environment_name"
+  export TF_VAR_service_name="$service_name"
+  export TF_PLUGIN_CACHE_DIR="~/.terraform.d/plugin-cache"
+
+  echo -e "\n\n***** Refreshing State and Upgrading Modules *****"
 
   echo "no" | terraform init -get=true \
+                             -upgrade \
                              -input=false \
                              -backend=true \
-                             -backend-config "bucket=${account}-terraform-state" \
-                             -backend-config "key=${root}/${region}/${vpc}/${environment}/${service}/terraform.tfstate" \
+                             -backend-config "bucket=${aws_account}-terraform-state" \
+                             -backend-config "key=${root}/${aws_region}/${vpc_name}/${environment_name}/${service_name}/terraform.tfstate" \
+                             -backend-config "profile=${aws_account}" \
                              -backend-config "region=us-east-1"
 }
 
@@ -64,19 +84,20 @@ show() {
 }
 
 ## Begin script ## 
-if [ "$#" -ne 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   help_message
 fi
 
 [ -z backend.tf ] || createBackendConfig 
+[ -d ~/.terraform.d/plugin-cache ] || mkdir -p ~/.terraform.d/plugin-cache
 
-action="$1"
+ACTION="$1"
 
-case $action in
+case $ACTION in
   apply|destroy|plan|refresh|show)
-    $action
+    $ACTION $@
     ;;
-  *******)
+  ****)
     echo "That is not a vaild choice."
     help_message
     ;;

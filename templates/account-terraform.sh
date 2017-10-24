@@ -1,4 +1,5 @@
 #!/bin/bash
+# Must be run in the service's directory.
 
 help_message() {
   echo -e "Usage: $0 [apply|destroy|plan|refresh|show]\n"
@@ -10,7 +11,7 @@ help_message() {
   echo -e "\tshow    \t Refresh and show the Terraform remote state"
   exit 1
 }
-
+ 
 createBackendConfig() {
   /bin/cat > backend.tf <<EOL
 terraform {
@@ -19,54 +20,74 @@ terraform {
 EOL
 }
 
- 
 apply() {
-  refresh
-  terraform get -update
-  terraform apply
+  plan
+  echo -e "\n\n***** Running \"terraform apply\" *****"
+  terraform apply -auto-approve=true
 }
 
 destroy() {
-  refresh
-  terraform get -update
-  terraform destroy
+  shift
+  plan destroy $@
+  echo -e "\n\n***** Running \"terraform destroy\" *****"
+  terraform destroy $@
 }
 
 plan() {
   refresh
   terraform get -update
-  terraform plan
+  echo -e  "\n\n***** Running \"terraform plan\" *****"
+
+  if [ "$1" = "destroy" ]; then
+    if [ $# -gt 1 ]; then
+      terraform plan -$@
+    else
+      terraform plan -destroy
+    fi
+  else
+    terraform plan
+  fi
 }
 
 refresh() {
   root=$(pwd | awk -F "/" '{print $(NF-1)}')
-  account=$(pwd | awk -F "/" '{print $NF}')
+  aws_account=$(pwd | awk -F "/" '{print $NF}')
+
+  export TF_VAR_root="$root"
+  export TF_VAR_aws_account="$aws_account"
+  export TF_PLUGIN_CACHE_DIR="~/.terraform.d/plugin-cache"
+
+  echo -e "\n\n***** Refreshing State and Upgrading Modules *****"
 
   echo "no" | terraform init -get=true \
+                             -upgrade \
                              -input=false \
                              -backend=true \
-                             -backend-config "bucket=${account}-terraform-state" \
+                             -backend-config "bucket=${aws_account}-terraform-state" \
                              -backend-config "key=${root}/terraform.tfstate" \
+                             -backend-config "profile=${aws_account}" \
                              -backend-config "region=us-east-1"
 }
 
 show() {
   refresh
+  echo -e "\n\n***** Running \"terraform show\"  *****"
   terraform show
 }
 
 ## Begin script ## 
-if [ "$#" -ne 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   help_message
 fi
 
-[ -z backend.tf ] || createBackendConfig
+[ -z backend.tf ] || createBackendConfig 
+[ -d ~/.terraform.d/plugin-cache ] || mkdir -p ~/.terraform.d/plugin-cache
 
-action="$1"
+ACTION="$1"
 
-case $action in
+case $ACTION in
   apply|destroy|plan|refresh|show)
-    $action 
+    $ACTION $@
     ;;
   *******)
     echo "That is not a vaild choice."
